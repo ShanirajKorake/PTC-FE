@@ -10,7 +10,7 @@ export default function Sidebar() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen w-64 p-10 bg-gradient-to-b from-white/70 to-white/40 backdrop-blur-2xl border-r border-gray-200 shadow-lg text-gray-800">
+    <div className="flex flex-col h-full w-64 p-10 bg-gradient-to-b from-white/70 to-white/40 backdrop-blur-2xl border-r border-gray-200 shadow-lg text-gray-800">
       {/* Current Date & Time */}
       <div className="flex-none mb-6">
         <div className="text-center text-sm text-gray-500">Current Date & Time</div>
