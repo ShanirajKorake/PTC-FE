@@ -2,95 +2,33 @@ import React, { useState, useEffect } from "react";
 import { Plus, Trash2, ArrowLeft } from "lucide-react";
 import InvoicePDF from "./InvoicePDF";
 
-// // InvoicePDF Component (Must be in the same file as per single-file mandate)
-// const InvoicePDF = ({ formData, vehicles }) => {
-//   const totalBalance = vehicles.reduce((sum, v) => sum + parseFloat(v.balance || 0), 0).toFixed(2);
-//   const totalAdvance = vehicles.reduce((sum, v) => sum + parseFloat(v.advance || 0), 0).toFixed(2);
-//   const totalFreight = vehicles.reduce((sum, v) => sum + parseFloat(v.totalFreight || 0), 0).toFixed(2);
+// --- Utility Function to Clean/Format Vehicle Data ---
+const formatVehicleDataForPDF = (vehicle) => {
+    // List of fields that should be numeric and formatted to '0.00'
+    const numericFields = [
+        'freight', 'unloadingCharges', 'detention', 'weightCharges', 
+        'others', 'commission', 'advance', 'totalFreight', 'balance'
+    ];
 
-//   return (
-//     <div className="p-8 bg-white border border-gray-200 rounded-xl shadow-2xl space-y-8 print:shadow-none">
-//       <header className="text-center border-b-2 pb-4 border-blue-600">
-//         <h1 className="text-4xl font-extrabold text-blue-800 mb-1">INVOICE</h1>
-//         <p className="text-xl text-gray-700 font-semibold">{formData.partyName}</p>
-//         <p className="text-sm text-gray-500">{formData.partyAddress}</p>
-//       </header>
+    const cleanVehicle = { ...vehicle };
 
-//       {/* Header Details */}
-//       <div className="grid grid-cols-3 gap-4 text-sm font-medium">
-//         <div className="col-span-1 p-3 border rounded-lg bg-gray-50">
-//             <p><span className="text-gray-600">Invoice No:</span> <span className="font-bold text-gray-800">{formData.invoiceNo}</span></p>
-//             <p><span className="text-gray-600">Date:</span> {formData.billDate}</p>
-//         </div>
-//         <div className="col-span-2 p-3 border rounded-lg bg-gray-50">
-//             <p><span className="text-gray-600">Route:</span> <span className="font-bold text-gray-800">{formData.from} → {formData.to} → {formData.backTo}</span></p>
-//             <p><span className="text-gray-600">Dates:</span> Loading ({formData.loadingDate}) / Unloading ({formData.unloadingDate})</p>
-//         </div>
-//       </div>
+    // 1. Ensure all numeric fields are present and formatted as "X.XX"
+    numericFields.forEach(field => {
+        // Use parseFloat with a default of 0 if the string is empty/invalid, 
+        // then format it back to a string with 2 decimal places.
+        const numericValue = parseFloat(cleanVehicle[field] || 0) || 0;
+        cleanVehicle[field] = numericValue.toFixed(2).toString();
+    });
 
-//       {/* Vehicle Table */}
-//       <div className="overflow-x-auto rounded-lg border border-gray-200">
-//         <table className="min-w-full divide-y divide-gray-200">
-//           <thead className="bg-blue-50">
-//             <tr className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
-//               <th className="px-3 py-3 text-left">LR / Vehicle / Container</th>
-//               <th className="px-3 py-3 text-right">Freight</th>
-//               <th className="px-3 py-3 text-right">Charges</th>
-//               <th className="px-3 py-3 text-right">Commission</th>
-//               <th className="px-3 py-3 text-right">Total Freight</th>
-//               <th className="px-3 py-3 text-right">Advance</th>
-//               <th className="px-3 py-3 text-right">Balance Due</th>
-//             </tr>
-//           </thead>
-//           <tbody className="bg-white divide-y divide-gray-100">
-//             {vehicles.map((v, index) => (
-//               <tr key={index} className="text-sm hover:bg-yellow-50/50">
-//                 <td className="px-3 py-2 whitespace-nowrap">
-//                   <p className="font-semibold text-gray-900">{v.lrNo}</p>
-//                   <p className="text-xs text-blue-600">{v.vehicleNo}</p>
-//                   <p className="text-xs text-gray-500">{v.containerNo}</p>
-//                 </td>
-//                 <td className="px-3 py-2 text-right">{parseFloat(v.freight).toLocaleString()}</td>
-//                 <td className="px-3 py-2 text-right">
-//                     {/* Sum of Unloading + Detention + Weight + Others */}
-//                     {(parseFloat(v.unloadingCharges) + parseFloat(v.detention) + parseFloat(v.weightCharges) + parseFloat(v.others)).toFixed(2)}
-//                 </td>
-//                 <td className="px-3 py-2 text-right font-medium text-purple-600">{parseFloat(v.commission).toLocaleString()}</td>
-//                 <td className="px-3 py-2 text-right font-bold text-gray-800">{parseFloat(v.totalFreight).toLocaleString()}</td>
-//                 <td className="px-3 py-2 text-right text-red-600">{parseFloat(v.advance).toLocaleString()}</td>
-//                 <td className="px-3 py-2 text-right font-extrabold text-green-700">{parseFloat(v.balance).toLocaleString()}</td>
-//               </tr>
-//             ))}
-//           </tbody>
-//           {/* Total Row */}
-//           <tfoot className="bg-blue-100 border-t-2 border-blue-600">
-//             <tr className="text-sm font-extrabold text-blue-900">
-//                 <td className="px-3 py-3 text-right uppercase">Invoice Total</td>
-//                 <td className="px-3 py-3 text-right" colSpan="3"></td>
-//                 <td className="px-3 py-3 text-right">{parseFloat(totalFreight).toLocaleString()}</td>
-//                 <td className="px-3 py-3 text-right text-red-700">{parseFloat(totalAdvance).toLocaleString()}</td>
-//                 <td className="px-3 py-3 text-right text-green-900">{parseFloat(totalBalance).toLocaleString()}</td>
-//             </tr>
-//           </tfoot>
-//         </table>
-//       </div>
-      
-//       {/* Commission and Notes */}
-//       <div className="flex justify-between items-start pt-4 border-t border-gray-300">
-//           <div className="w-1/3 p-4 bg-purple-50 rounded-lg border border-purple-200">
-//               <p className="text-lg font-bold text-purple-800">Total Commission Paid:</p>
-//               <p className="text-3xl font-extrabold text-purple-900 mt-1">₹ {parseFloat(formData.commission).toLocaleString()}</p>
-//           </div>
-//           <div className="text-right">
-//               <p className="text-lg font-semibold text-gray-800">For {formData.partyName}</p>
-//               <div className="mt-12">
-//                 <p className="border-t border-gray-400 pt-2 text-sm text-gray-500">Authorized Signature</p>
-//               </div>
-//           </div>
-//       </div>
-//     </div>
-//   );
-// };
+    // 2. Ensure non-numeric string fields (LR, Vehicle, Container) are at least empty strings
+    // This handles the case where a field might be undefined or null, though React state usually prevents this.
+    cleanVehicle.lrNo = cleanVehicle.lrNo || "";
+    cleanVehicle.vehicleNo = cleanVehicle.vehicleNo || "";
+    cleanVehicle.containerNo = cleanVehicle.containerNo || "";
+
+    return cleanVehicle;
+};
+// -----------------------------------------------------
 
 
 // Main Application Component
@@ -129,6 +67,8 @@ export default function App() {
   ]);
 
   const [showPreview, setShowPreview] = useState(false);
+  // State to hold the final, formatted data just before passing to PDF
+  const [pdfData, setPdfData] = useState({ formData, vehicles }); // Initialize with current state
 
   // Effect to automatically calculate total commission whenever vehicles change
   useEffect(() => {
@@ -147,7 +87,8 @@ export default function App() {
 
   const handleVehicleChange = (index, field, value) => {
     const updated = [...vehicles];
-    updated[index][field] = value;
+    // NOTE: Storing as string is correct for input fields
+    updated[index][field] = value; 
     
     // Fields that trigger recalculation
     const calculationFields = ['freight', 'unloadingCharges', 'detention', 'weightCharges', 'others', 'commission', 'advance'];
@@ -158,13 +99,14 @@ export default function App() {
       // Calculate Total Freight: Sum of all charges + commission
       // Ensure all fields are treated as numbers, defaulting to 0 if empty or invalid
       const total = parseFloat(v.freight || 0) + 
-                    parseFloat(v.unloadingCharges || 0) + 
-                    parseFloat(v.detention || 0) + 
-                    parseFloat(v.weightCharges || 0) + 
-                    parseFloat(v.others || 0) +
-                    parseFloat(v.commission || 0);
+                        parseFloat(v.unloadingCharges || 0) + 
+                        parseFloat(v.detention || 0) + 
+                        parseFloat(v.weightCharges || 0) + 
+                        parseFloat(v.others || 0) +
+                        parseFloat(v.commission || 0);
 
       // Recalculate Total Freight and Balance
+      // Use toFixed(2) to ensure two decimal places are maintained even for whole numbers or zero.
       updated[index].totalFreight = total.toFixed(2).toString();
       updated[index].balance = (total - parseFloat(v.advance || 0)).toFixed(2).toString();
     }
@@ -184,9 +126,11 @@ export default function App() {
         newVehicle.lrNo = "";
         newVehicle.vehicleNo = "";
         newVehicle.containerNo = "";
-
-        // The remaining fields (charges, totals, balance) are correctly copied as strings.
         
+        // Optional: Resetting numeric fields to "0.00" might be clearer for new entries
+        const numericFieldsToReset = ['freight', 'unloadingCharges', 'detention', 'weightCharges', 'others', 'commission', 'advance', 'totalFreight', 'balance'];
+        numericFieldsToReset.forEach(field => newVehicle[field] = "0.00");
+
         setVehicles([...vehicles, newVehicle]);
     } else {
         // Fallback for an empty array
@@ -205,9 +149,25 @@ export default function App() {
     }
   };
 
+  // --- MODIFIED FUNCTION ---
   const handleGeneratePDF = () => {
+    // 1. Clean and format the vehicles data for the PDF
+    const formattedVehicles = vehicles.map(formatVehicleDataForPDF);
+    
+    // 2. Update the dedicated PDF state with the final, clean data
+    setPdfData({
+        // Ensure global commission is also formatted
+        formData: {
+            ...formData,
+            commission: parseFloat(formData.commission || 0).toFixed(2).toString(),
+        },
+        vehicles: formattedVehicles
+    });
+    
+    // 3. Show the preview
     setShowPreview(true);
   };
+  // -------------------------
   
   // Calculate summary totals for the form view
   const totalBalance = vehicles.reduce((sum, v) => sum + parseFloat(v.balance || 0), 0).toFixed(2);
@@ -219,6 +179,7 @@ export default function App() {
     <div className="min-h-screen bg-gray-100 p-4 sm:p-8">
       <div className="max-w-7xl mx-auto bg-white shadow-xl rounded-2xl p-8">
         {!showPreview ? (
+          // ... (Existing form rendering code) ...
           <div>
             <h2 className="text-3xl font-extrabold mb-6 text-center text-blue-900">
               New Invoice
@@ -261,8 +222,8 @@ export default function App() {
               </div>
 
               <div className="mt-4">
-                 <label className="block text-sm font-medium text-gray-700 mb-1">Party Address</label>
-                 <input
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Party Address</label>
+                  <input
                     type="text"
                     name="partyAddress"
                     value={formData.partyAddress}
@@ -418,7 +379,8 @@ export default function App() {
                 <ArrowLeft size={18} /> Back to Form
               </button>
             </div>
-            <InvoicePDF formData={formData} vehicles={vehicles} />
+            {/* USE pdfData state here */}
+            <InvoicePDF formData={pdfData.formData} vehicles={pdfData.vehicles} />
           </div>
         )}
       </div>
