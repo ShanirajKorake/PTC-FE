@@ -2,486 +2,510 @@ import React, { useEffect, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// NOTE: These relative imports (headerImg, footerImg) will only work if you 
-// have an external tool that compiles these assets. For this environment, 
-// we assume they are handled by your setup.
-import headerImg from "../assets/ptc1.jpg";
-import footerImg from "../assets/ptc2.jpg";
-import signImg from "../assets/sign.png"; // <-- Added Signature Image Import
-import ptc3 from "../assets/ptc3.jpg"; // <-- Added Footer Image Import
-import ptc4 from "../assets/ptc4.jpg"; // <-- Added Footer Image Import
-import ptc5 from "../assets/ptc5.jpg"; // <-- Added Footer Image Import
+// Note: You must ensure these assets paths are correct relative to where this component is run.
+import signImg from "../assets/sign.png"; 
+import ptc4 from "../assets/ptc4.jpg"; // Header image
+import ptc5 from "../assets/ptc5.jpg"; // Footer image
 
 
 export default function InvoicePDF({ formData, vehicles }) {
-  // Updated state to store both the URL for preview and the desired filename for download
-  const [pdfData, setPdfData] = useState({ url: null, filename: null });
+    const [pdfData, setPdfData] = useState({ url: null, filename: null });
 
-  useEffect(() => {
-    // --- 1. Validation and Initial Setup ---
-    if (!formData || !vehicles || vehicles.length === 0) {
-      setPdfData({ url: null, filename: null }); 
-      return;
-    }
+    useEffect(() => {
+        // --- 1. Validation and Initial Setup ---
+        if (!formData || !vehicles || vehicles.length === 0) {
+            setPdfData({ url: null, filename: null }); 
+            return;
+        }
 
-    // --- Helper function to convert number to words (Indian system) ---
-    const numberToWords = (n) => {
-        if (typeof n !== 'number' || isNaN(n)) return 'Zero';
-        const num = Math.floor(n);
-        if (num === 0) return 'Zero';
+        // --- Helper function to convert number to words (Indian system) ---
+        const numberToWords = (n) => {
+            if (typeof n !== 'number' || isNaN(n)) return 'Zero';
+            const num = Math.floor(n);
+            if (num === 0) return 'Zero';
 
-        const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
-        const b = ['', '', 'Twenty ', 'Thirty ', 'Forty ', 'Fifty ', 'Sixty ', 'Seventy ', 'Eighty ', 'Ninety '];
+            const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+            const b = ['', '', 'Twenty ', 'Thirty ', 'Forty ', 'Fifty ', 'Sixty ', 'Seventy ', 'Eighty ', 'Ninety '];
 
-        const convertTens = (x) => (x < 20 ? a[x] : b[Math.floor(x / 10)] + a[x % 10]);
+            const convertTens = (x) => (x < 20 ? a[x] : b[Math.floor(x / 10)] + a[x % 10]);
 
-        const convertHundreds = (x) => {
-            let s = convertTens(x % 100);
-            if (x > 99) s = a[Math.floor(x / 100)] + 'Hundred ' + s;
-            return s;
+            const convertHundreds = (x) => {
+                let s = convertTens(x % 100);
+                if (x > 99) s = a[Math.floor(x / 100)] + 'Hundred ' + s;
+                return s;
+            };
+
+            let words = '';
+            let tempNum = num;
+
+            // Indian Numbering System
+            let part = Math.floor(tempNum / 10000000); // Crores
+            if (part > 0) words += convertTens(part) + 'Crore ';
+            tempNum %= 10000000;
+            
+            part = Math.floor(tempNum / 100000); // Lakhs
+            if (part > 0) words += convertTens(part) + 'Lakh ';
+            tempNum %= 100000;
+
+            part = Math.floor(tempNum / 1000); // Thousands
+            if (part > 0) words += convertTens(part) + 'Thousand ';
+            tempNum %= 1000;
+            
+            words += convertHundreds(tempNum);
+
+            return words.trim() + ' Only';
+        };
+        // -------------------------------------------------------------------
+
+        const doc = new jsPDF();
+
+        // PDF Configuration Constants
+        const PAGE_WIDTH = 210;
+        const MARGIN = 10;
+        
+        // Define Column Widths based on USABLE_WIDTH = 190mm
+        // Col Widths: [45 (Vehicle Info), 30 (Charge Name), 30 (Charge Amt), 30 (Total Freight), 30 (Total Adv), 25 (Balance Due)] = 190mm
+        const COL_WIDTHS = [45, 30, 30, 30, 30, 25]; 
+        
+        // --- Custom Colors (Simplified Palette) ---
+        const COLOR_WHITE = [255, 255, 255];
+        const COLOR_LIGHT_GRAY = [240, 240, 240];
+        const COLOR_MEDIUM_GRAY = [220, 220, 220];
+        const COLOR_RED = [255, 0, 0];
+        const COLOR_HIGHLIGHT_PARTY = [255, 255, 210]; // Pale Yellow/Cream 
+        const COLOR_ACCENT_TOTAL = [0, 51, 102]; // Dark Blue 
+
+        // Default Table Styles
+        const TABLE_BASE_STYLES = {
+            fontSize: 8.5,
+            cellPadding: 1.5, 
+            textColor: [50, 50, 50], 
+            lineColor: [0, 0, 0],
+            lineWidth: 0.1,
+            margin: { left: MARGIN, right: MARGIN },
+            styles: { fillColor: COLOR_WHITE, minCellHeight: 6 } 
         };
 
-        let words = '';
-        let tempNum = num;
+        // Header Style (Medium Gray)
+        const SECTION_HEAD_STYLES = { 
+            fillColor: COLOR_MEDIUM_GRAY, 
+            fontStyle: 'bold',
+            fontSize: 8.5,
+            halign: 'center'
+        };
 
-        // Crores (10,000,000)
-        let part = Math.floor(tempNum / 10000000);
-        if (part > 0) words += convertTens(part) + 'Crore ';
-        tempNum %= 10000000;
+        let currentY = 0;
+
+        // --- 2. Data Aggregation for Vehicle Charges ---
+        const getVehicleChargesData = () => {
+            const totalFreightAgg = vehicles.reduce((sum, v) => sum + parseFloat(v.totalFreight || 0), 0);
+            const totalAdvanceAgg = vehicles.reduce((sum, v) => sum + parseFloat(v.advance || 0), 0);
+            const totalBalanceAgg = vehicles.reduce((sum, v) => sum + parseFloat(v.balance || 0), 0);
+            
+            const aggregateCharges = {
+                Freight: vehicles.reduce((sum, v) => sum + parseFloat(v.freight || 0), 0),
+                Unloading: vehicles.reduce((sum, v) => sum + parseFloat(v.unloadingCharges || 0), 0),
+                Detention: vehicles.reduce((sum, v) => sum + parseFloat(v.detention || 0), 0),
+                Weight: vehicles.reduce((sum, v) => sum + parseFloat(v.weightCharges || 0), 0),
+                Others: vehicles.reduce((sum, v) => sum + parseFloat(v.others || 0), 0),
+                Commission: vehicles.reduce((sum, v) => sum + parseFloat(v.commission || 0), 0),
+            };
+
+            const charges = [
+                { label: 'Freight', value: aggregateCharges.Freight },
+                { label: 'Unloading Ch.', value: aggregateCharges.Unloading },
+                { label: 'Detention Ch.', value: aggregateCharges.Detention },
+                { label: 'Weight Ch.', value: aggregateCharges.Weight },
+                { label: 'Other Ch.', value: aggregateCharges.Others },
+                { label: 'Commission', value: aggregateCharges.Commission },
+            ].filter(c => c.value > 0 || c.label === 'Freight'); 
+            
+            return { charges, totalFreightAgg, totalAdvanceAgg, totalBalanceAgg };
+        };
+
+        const { charges, totalFreightAgg, totalAdvanceAgg, totalBalanceAgg } = getVehicleChargesData();
+
+        // --- 3. Build the SINGLE LARGE TABLE Body (6 logical columns) ---
+        const ALL_TABLE_BODY = [];
         
-        // Lakhs (100,000)
-        part = Math.floor(tempNum / 100000);
-        if (part > 0) words += convertTens(part) + 'Lakh ';
-        tempNum %= 100000;
+        // --- SECTION 1: PARTY DETAILS (Combined into one block, spanning 6 columns) ---
+        ALL_TABLE_BODY.push([
+            { 
+                // Combine Bill To: Party Name and Address into one cell
+                content: `Bill To: ${formData.partyName || ''}`, 
+                colSpan: 6, 
+                styles: { 
+                    fontStyle: 'bold', 
+                    fontSize: 12, 
+                    fillColor: COLOR_WHITE, 
+                    textColor: [0, 0, 0],
+                    halign: 'left',
+                    minCellHeight: 6
+                } 
+            }
+        ]);
+        ALL_TABLE_BODY.push([
+            { 
+                // Combine Bill To: Party Name and Address into one cell
+                content: `Address: ${formData.partyAddress || 'KALAMBOLI'}`, 
+                colSpan: 6, 
+                styles: { 
+                    fontStyle: 'bold', 
+                    fontSize: 8.5, 
+                    fillColor: COLOR_WHITE, 
+                    textColor: [0, 0, 0],
+                    halign: 'left',
+                    minCellHeight: 6
+                } 
+            }
+        ]);
 
-        // Thousands (1,000)
-        part = Math.floor(tempNum / 1000);
-        if (part > 0) words += convertTens(part) + 'Thousand ';
-        tempNum %= 1000;
+        // --- SECTION 2: TRIP DETAILS (2 rows) ---
+        // Row 1: Loading Date (colSpan 3) and Unloading Date (colSpan 3)
+        ALL_TABLE_BODY.push([
+            // Loading Date: Label and Value in one cell (colSpan 3)
+            { 
+                content: `Loading Date: ${formData.loadingDate || ''}`, 
+                colSpan: 3, 
+                styles: { 
+                    fontStyle: 'bold', 
+                    fillColor: COLOR_WHITE, 
+                    halign: 'left',
+                    fontSize: 8.5 , 
+                    textColor: [0, 0, 0],
+                } 
+            },
+            
+            // Unloading Date: Label and Value in one cell (colSpan 3)
+            { 
+                content: `Unloading Date: ${formData.unloadingDate || ''}`, 
+                colSpan: 3, 
+                styles: { 
+                    fontStyle: 'bold', 
+                    fillColor: COLOR_WHITE, 
+                    halign: 'right',
+                    fontSize: 8.5, 
+                    textColor: [0, 0, 0],
+                } 
+            } 
+        ]);
+
+        // Row 2: Trip locations - Now using 3 columns with colSpan 2 each (6 columns total)
+        ALL_TABLE_BODY.push([
+            // From: Label and Value in one cell (colSpan 2)
+            { 
+                content: `From: ${formData.from || ''}`, 
+                styles: { 
+                    fontStyle: 'bold', 
+                    fillColor: COLOR_WHITE, 
+                    halign: 'left',
+                    fontSize: 8.5, 
+                    textColor: [0, 0, 0],
+                } 
+            },
+            // To: Label and Value in one cell (colSpan 2)
+            { 
+                content: `To: ${formData.to || ''}`, 
+                colSpan: 3, 
+                styles: { 
+                    fontStyle: 'bold', 
+                    fillColor: COLOR_WHITE, 
+                    halign: 'center',
+                    fontSize: 8.5, 
+                    textColor: [0, 0, 0],
+                } 
+            },
+            // Back To: Label and Value in one cell (colSpan 2)
+            { 
+                content: `Back To: ${formData.backTo || ''}`, 
+                colSpan: 2, 
+                styles: { 
+                    fontStyle: 'bold', 
+                    fillColor: COLOR_WHITE, 
+                    halign: 'right',
+                    fontSize: 8.5, 
+                    textColor: [0, 0, 0],
+                } 
+            }
+        ]);
         
-        // Hundreds (1)
-        words += convertHundreds(tempNum);
+        // --- SECTION 3: VEHICLE/CHARGES (Main Content Header) ---
+        ALL_TABLE_BODY.push([
+            { content: 'Vehicle Information (LR/Vehicle/Container)', colSpan: 1, styles: SECTION_HEAD_STYLES },
+            { content: 'Charge Name', colSpan: 1, styles: SECTION_HEAD_STYLES },
+            { content: 'Charge Amount (INR)', colSpan: 1, styles: SECTION_HEAD_STYLES },
+            { content: 'TOTAL FREIGHT', colSpan: 1, styles: SECTION_HEAD_STYLES },
+            { content: 'TOTAL ADVANCE', colSpan: 1, styles: SECTION_HEAD_STYLES },
+            { content: 'BALANCE DUE', colSpan: 1, styles: SECTION_HEAD_STYLES }
+        ]);
 
-        return words.trim() + ' Only';
-    };
-    // -------------------------------------------------------------------
+        // --- SECTION 3: VEHICLE/CHARGES (Main Content Body) ---
+        const vehicleInfoContent = vehicles.map((v, idx) => 
+            `${idx + 1}. LR: ${v.lrNo || '-'} | Veh: ${v.vehicleNo || '-'} | Cont: ${v.containerNo || '-'}`
+        ).join('\n\n');
 
-    const doc = new jsPDF();
+        const N_ROWS_FOR_CHARGES = charges.length || 1; 
+        
+        for (let i = 0; i < N_ROWS_FOR_CHARGES; i++) {
+            const charge = charges[i] || { label: '-', value: 0 };
+            let row = [];
 
-    // PDF Configuration Constants
-    const PAGE_WIDTH = 210;
-    const MARGIN = 10; // 10mm margin for 190mm usable width
-    
-    // Default Table Styles
-    const TABLE_BASE_STYLES = {
-      fontSize: 6.5,
-      cellPadding: 1.5,
-      // Change: Darkened text color for better readability
-      textColor: [50, 50, 50], 
-      lineColor: [0, 0, 0],
-      lineWidth: 0.1,
-      margin: { left: MARGIN, right: MARGIN },
-      // Added: Default white fill color for all body cells
-      alternateRowStyles: { fillColor: [255, 255, 255] }, 
-      styles: { fillColor: [255, 255, 255] }
-    };
+            // Col 1: Vehicle Info (Only in the first row, spans N rows)
+            if (i === 0) {
+                row.push({ 
+                    content: vehicleInfoContent, 
+                    rowSpan: N_ROWS_FOR_CHARGES, 
+                    styles: { 
+                        fontStyle: 'bold', 
+                        fontSize: 7.5, 
+                        valign: 'top',
+                        textColor: COLOR_RED,
+                        fillColor: COLOR_WHITE, 
+                    } 
+                });
+            } 
 
-    // Header Style
-    const TABLE_HEAD_STYLES = { 
-      fillColor: [200, 200, 200],
-      textColor: [0, 0, 0],
-      fontStyle: 'bold',
-      halign: 'center',
-      fontSize: 7.5
-    };
+            // Col 2 & 3: Charge Name and Amount
+            row.push({ content: charge.label, styles: { fontSize: 8, fontStyle: 'normal', halign: 'left' } });
+            row.push({ content: charge.value.toFixed(2), styles: { halign: 'right', fontSize: 8, fontStyle: 'normal' } });
 
-    let currentY = 0;
+            // Col 4, 5, 6: Totals (Only in the first row, spans N rows) - HIGHLIGHTED
+            if (i === 0) {
+                const totalColumns = [
+                    { value: totalFreightAgg.toFixed(2) },
+                    { value: totalAdvanceAgg.toFixed(2) },
+                    { value: totalBalanceAgg.toFixed(2) }
+                ];
 
-    // --- 2. Helper Functions for Table Generation (6 Columns, Consolidated) ---
+                totalColumns.forEach(col => {
+                    row.push({ 
+                        content: col.value, 
+                        rowSpan: N_ROWS_FOR_CHARGES, 
+                        styles: { 
+                            fontStyle: 'bold', 
+                            fontSize: 8.5, 
+                            halign: 'right', 
+                            valign: 'top', 
+                            textColor: [50,50,50], 
+                            fillColor: COLOR_WHITE, // Dark Accent Blue for Totals
+                        } 
+                    });
+                });
+            } 
 
-    const getVehicleTableConfig = () => {
-      // 6 Columns: Vehicle Info, Charge Name, Charge Amount, Total Freight (A), Advance Paid (C), Balance Due (D=A-C)
-      const head = [[
-        'Vehicle Information', 
-        'Charge Name', 
-        'Charge Amount', 
-        'TOTAL FREIGHT', 
-        'TOTAL ADVANCE', 
-        'BALANCE DUE' 
-      ]]; 
+            ALL_TABLE_BODY.push(row);
+        }
 
-      const N_ROWS_FOR_CHARGES = 6; 
-      let body = [];
+        // --- SECTION 4: GRAND AGGREGATE TOTALS (Summary) ---
+        ALL_TABLE_BODY.push([
+            { 
+                content: 'TOTAL (INR)', 
+                colSpan: 3, 
+                styles: { fontStyle: 'bold', halign: 'right', fontSize: 8.5, fillColor: COLOR_LIGHT_GRAY , 
+                            textColor: [50,50,50], } 
+            },
+            { 
+                content: totalFreightAgg.toFixed(2), 
+                styles: { fontStyle: 'bold', fontSize: 8.5, halign: 'right', fillColor: COLOR_LIGHT_GRAY, 
+                            textColor: [50,50,50],  } 
+            }, 
+            { 
+                content: totalAdvanceAgg.toFixed(2), 
+                styles: { fontStyle: 'bold', fontSize: 8.5, halign: 'right', fillColor: COLOR_LIGHT_GRAY, 
+                            textColor: [50,50,50],  } 
+            }, 
+            { 
+                content: totalBalanceAgg.toFixed(2), 
+                styles: { fontStyle: 'bold', fontSize: 8.5, halign: 'right', fillColor: COLOR_LIGHT_GRAY, 
+                            textColor: [50,50,50],  } 
+            } 
+        ]);
 
-      // --- 2a. Aggregate Data Across All Vehicles ---
-      const totalFreightAgg = vehicles.reduce((sum, v) => sum + parseFloat(v.totalFreight || 0), 0);
-      const totalAdvanceAgg = vehicles.reduce((sum, v) => sum + parseFloat(v.advance || 0), 0);
-      const totalBalanceAgg = vehicles.reduce((sum, v) => sum + parseFloat(v.balance || 0), 0);
-      
-      const aggregateCharges = {
-          Freight: vehicles.reduce((sum, v) => sum + parseFloat(v.freight || 0), 0),
-          Unloading: vehicles.reduce((sum, v) => sum + parseFloat(v.unloadingCharges || 0), 0),
-          Detention: vehicles.reduce((sum, v) => sum + parseFloat(v.detention || 0), 0),
-          Weight: vehicles.reduce((sum, v) => sum + parseFloat(v.weightCharges || 0), 0),
-          Others: vehicles.reduce((sum, v) => sum + parseFloat(v.others || 0), 0),
-          Commission: vehicles.reduce((sum, v) => sum + parseFloat(v.commission || 0), 0),
-      };
-
-      const charges = [
-          { label: 'Freight', value: aggregateCharges.Freight },
-          { label: 'Unloading Ch.', value: aggregateCharges.Unloading },
-          { label: 'Detention Ch.', value: aggregateCharges.Detention },
-          { label: 'Weight Ch.', value: aggregateCharges.Weight },
-          { label: 'Other Ch.', value: aggregateCharges.Others },
-          { label: 'Commission', value: aggregateCharges.Commission },
-      ];
-
-      // --- 2b. Vehicle Info Column Content (Concatenated) ---
-      const vehicleInfoContent = vehicles.map((v, idx) => 
-          `${idx + 1}. LR: ${v.lrNo || ''} | Veh: ${v.vehicleNo || ''} | Cont: ${v.containerNo || ''}`
-      ).join('\n\n');
-      
-      // --- 2c. Total Column Content (Formatted) ---
-      const totalFreightColumn = `${totalFreightAgg.toFixed(2)}`;
-      const advancePaidColumn = `${totalAdvanceAgg.toFixed(2)}`;
-      const balanceDueColumn = `${totalBalanceAgg.toFixed(2)}`;
-      
-      // --- 2d. Build the Body Rows ---
-      for (let i = 0; i < N_ROWS_FOR_CHARGES; i++) {
-          let row = [];
-          const charge = charges[i];
-          
-          // Col 1: Vehicle Info (Only in the first row, spans N rows)
-          if (i === 0) {
-              row.push({ 
-                  content: vehicleInfoContent, 
-                  rowSpan: N_ROWS_FOR_CHARGES, 
-                  styles: { 
-                      fontStyle: 'bold', // Highlighted text
-                      fontSize: 7.5, // Slightly larger font
-                      valign: 'top',
-                      // Highlight Vehicle Info with light yellow fill
-                      fillColor: [255, 255, 240] 
-                  } 
-              });
-          } 
-
-          // Col 2: Charge Name
-          row.push({ content: charge.label, styles: { fontSize: 6.5, fontStyle: 'normal' } });
-          
-          // Col 3: Charge Amount
-          row.push({ content: charge.value.toFixed(2), styles: { halign: 'right', fontSize: 6.5, fontStyle: 'normal' } });
-
-          // Col 4: Total Freight 
-          if (i === 0) {
-              row.push({ 
-                  content: totalFreightColumn, 
-                  rowSpan: N_ROWS_FOR_CHARGES, 
-                  styles: { 
-                      fontStyle: 'bold', 
-                      fontSize: 8.5, 
-                      halign: 'right', 
-                      valign: 'top', 
-                  } 
-              });
-          }
-
-          // Col 5: Total Advance
-           if (i === 0) {
-              row.push({ 
-                  content: advancePaidColumn, 
-                  rowSpan: N_ROWS_FOR_CHARGES, 
-                  styles: { 
-                      fontStyle: 'bold', 
-                      fontSize: 8.5, 
-                      halign: 'right', 
-                      valign: 'top', 
-                  } 
-              });
-          }
-          
-          // Col 6: Total Balance Due
-          if (i === 0) {
-              row.push({ 
-                  content: balanceDueColumn, 
-                  rowSpan: N_ROWS_FOR_CHARGES, 
-                  styles: { 
-                      fontStyle: 'bold', 
-                      fontSize: 8.5, 
-                      halign: 'right', 
-                      valign: 'top', 
-                  } 
-              });
-          } 
-
-          body.push(row);
-      }
-
-      // --- FINAL ROW: GRAND AGGREGATE TOTALS (Summary) ---
-      body.push([
-          // Col 1-3 Span: Label
-          { 
-              content: 'GRAND AGGREGATE TOTALS', 
-              colSpan: 3, 
-              styles: { 
-                  fontStyle: 'bold', 
-                  halign: 'right', 
-                  fontSize: 8, 
-                  // Kept: Light gray fill for summary row label
-                  fillColor: [220, 220, 220] 
-              } 
-          },
-          // Col 4: Total Freight
-          { 
-              content: totalFreightAgg.toFixed(2), 
-              styles: { 
-                  fontStyle: 'bold', 
-                  fontSize: 8, 
-                  halign: 'right', 
-                  fillColor: [230, 230, 230] 
-              } 
-          }, 
-          // Col 5: Total Advance
-          { 
-              content: totalAdvanceAgg.toFixed(2), 
-              styles: { 
-                  fontStyle: 'bold', 
-                  fontSize: 8, 
-                  halign: 'right', 
-                  fillColor: [230, 230, 230] 
-              } 
-          }, 
-          // Col 6: Total Balance Due (Final Summary Value)
-          { 
-              content: totalBalanceAgg.toFixed(2), 
-              styles: { 
-                  fontStyle: 'bold', 
-                  fontSize: 8, 
-                  halign: 'right', 
-                  fillColor: [230, 230, 230] 
-              } 
-          } 
-      ]);
-
-      // Column Styles: Total width must be 190mm
-      const colStyles = {
-        // START CHANGE: Increased width to 50mm
-        0: { cellWidth: 50, valign: 'top' },     
-        // Reduced width to 25mm to compensate
-        1: { cellWidth: 25, valign: 'middle' },  
-        2: { cellWidth: 25, valign: 'middle', halign: 'right' },  
-        3: { cellWidth: 30, valign: 'top' },     
-        4: { cellWidth: 30, valign: 'top' },     
-        5: { cellWidth: 30, valign: 'top' },     
-        // END CHANGE (Total Width: 50 + 25 + 25 + 30 + 30 + 30 = 190mm)
-      };
-
-      return { head, body, colStyles, totalBalanceAgg };
-    };
-
-
-    // --- 3. Document Content Generation (Header, Details, Footer remain the same) ---
-
-    // 3.1 Header Image
-    //doc.addImage(headerImg, "JPEG", 0, 0, PAGE_WIDTH, 53.9); // for ptc1.jpg
-    //doc.addImage(ptc3, "JPEG", 0, 0, PAGE_WIDTH, 60.48); // for ptc3.jpg
-    doc.addImage(ptc4, "JPEG", 0, 0, PAGE_WIDTH, 56.56); // for ptc4.jpg
-    currentY = 62;
-
-    // 3.2 Invoice/Date Info
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.text(`BILL NO. ${formData.invoiceNo || '1'}`, MARGIN, currentY);
-    doc.text(`DATE: ${formData.billDate || ''}`, PAGE_WIDTH - MARGIN - 30, currentY);
-    
-    currentY += 8;
-    
-    // 3.3 Party Details
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Party Name: ${formData.partyName || ''}`, MARGIN, currentY);
-    currentY += 5;
-    doc.text(`Address: ${formData.partyAddress || 'KALAMBOLI'}`, MARGIN, currentY);
-    currentY += 5;
-
-    // 3.4 Global Trip Details
-    doc.setFont(undefined, 'bold');
-    doc.text(`Loading Date: ${formData.loadingDate || ''}`, MARGIN, currentY);
-    doc.text(`Unloading Date: ${formData.unloadingDate || ''}`, MARGIN + 50, currentY);
-    currentY += 5;
-    doc.text(`From: ${formData.from || ''}`, MARGIN, currentY);
-    doc.text(`To: ${formData.to || ''}`, MARGIN + 50, currentY);
-    doc.text(`Back To: ${formData.backTo || ''}`, MARGIN + 100, currentY);
-    doc.setFont(undefined, 'normal');
-    currentY += 4;
-
-    // 3.5 Vehicle/Charges Table 
-    const { head, body, colStyles, totalBalanceAgg } = getVehicleTableConfig();
-    autoTable(doc, {
-      ...TABLE_BASE_STYLES,
-      startY: currentY,
-      headStyles: TABLE_HEAD_STYLES,
-      head: head,
-      body: body,
-      columnStyles: colStyles,
-      theme: 'grid',
-    });
-    
-    currentY = doc.lastAutoTable.finalY + 5;
-    
-    // 3.6 Total Due Summary 
-    const totalDueAmount = totalBalanceAgg.toFixed(2);
-    const totalDueWords = numberToWords(totalBalanceAgg);
-
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.text('Total Balance Due:', MARGIN, currentY);
-    
-    // Display total due amount right-aligned
-    doc.text(`INR ${totalDueAmount}`, PAGE_WIDTH - MARGIN - doc.getTextWidth(`INR ${totalDueAmount}`), currentY);
-
-    currentY += 5;
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(9);
-    // Move "In Words" text to the left margin
-    doc.text(`(In Words: ${totalDueWords})`, PAGE_WIDTH - MARGIN - doc.getTextWidth(`(In Words: ${totalDueWords})`), currentY);
-
-    currentY += 8;
-    
-    // 3.7 Bank Details and Notes Table (NEW SECTION)
-    const bankDetailsContent = 
-        `PAN NO.: AWWPP1314Q\n\n` +
-        `Bank Account Details:\n` +
-        `Bank Account Name: PALAK TRANSPORT CORP\n` +
-        `Bank Name: HDFC BANK LTD.\n` +
-        `Bank Account No. 50200044714511\n` +
-        `IFSC:HDFC0002822\n` +
-        `Branch:KALAMBOLI`;
-
-    const termsContent = 
-        `Note:\n\n` +
-        `1) 12% Interest will be charged if the payment of this bill is not made within 15 days from the date of bill.\n\n` +
-        `2) You are requested to make payment to this bill by cross or order cheque in favour of "PALAK TRANSPORT CORP"`;
-
-    autoTable(doc, {
-        startY: currentY,
-        head: [], // No header
-        body: [
-            [
-                { 
-                    content: bankDetailsContent, 
-                    // Use bold font style for the left column (bank details)
-                    styles: { fontStyle: 'bold', fontSize: 7.5, textColor: [50, 50, 50], valign: 'top', cellPadding: 2 } 
-                },
-                { 
-                    content: termsContent, 
-                    styles: { fontStyle: 'normal', fontSize: 7, textColor: [50, 50, 50], valign: 'top', cellPadding: 2 } 
+        // --- SECTION 5: TOTAL DUE IN WORDS (Combined into one row, Increased Height) ---
+        const totalDueAmount = totalBalanceAgg.toFixed(2);
+        const totalDueWords = numberToWords(totalBalanceAgg);
+        
+        ALL_TABLE_BODY.push([
+            { 
+                content: `Total Balance Due: INR ${totalDueAmount}\n(In Words: ${totalDueWords})`,
+                colSpan: 6,
+                styles: { 
+                    fontStyle: 'bold', 
+                    textColor: [50,50, 50],
+                    fontSize: 10, 
+                    halign: 'right', 
+                    fillColor: COLOR_LIGHT_GRAY, // Reuse light accent color for final amount
+                    cellPadding: 3, 
+                    minCellHeight: 18 
                 }
-            ]
-        ],
-        styles: { 
-            // Theme 'plain' removes lines but we need borders
-            lineWidth: 0.1, // Keep the border line
-            lineColor: [150, 150, 150], // Light gray border
-            fillColor: [255, 255, 255] // White fill for the cells
-        },
-        columnStyles: {
-            0: { cellWidth: 75 }, // Bank/PAN details (75mm)
-            1: { cellWidth: 115 }, // Notes/Terms (115mm)
-        },
-        theme: 'plain', 
-        margin: { left: MARGIN, right: MARGIN },
-    });
-    
-    currentY = doc.lastAutoTable.finalY + 8; // Update Y position after the notes table
-
-    // 3.8 Signatures 
-    const SIGNATURE_Y = 210;
-    
-    // Signature Image Placement
-    const SIGNATURE_IMAGE_WIDTH = 30; // 30mm width
-    // Calculated height to maintain aspect ratio (30 / (255/176) = 20.7mm, adjusting slightly)
-    const SIGNATURE_IMAGE_HEIGHT = 20; 
-    
-    // Position the image above the 'Authorised Signatory' text, starting around X=150
-    const SIGNATURE_IMAGE_X = 160; 
-    const SIGNATURE_IMAGE_Y = SIGNATURE_Y - SIGNATURE_IMAGE_HEIGHT - 3; // 220 - 20 - 3 = 197mm
-
-    // Add Signature Image to the PDF
-    doc.addImage(signImg, "PNG", SIGNATURE_IMAGE_X, SIGNATURE_IMAGE_Y, SIGNATURE_IMAGE_WIDTH, SIGNATURE_IMAGE_HEIGHT);
-    
-    doc.setFontSize(8);
-    // doc.text('Prepared By.', MARGIN + 10, SIGNATURE_Y);
-    // doc.text('Checked By.', PAGE_WIDTH / 2 - 10, SIGNATURE_Y);
-    doc.text('Authorised Signatory', PAGE_WIDTH - MARGIN - 40, SIGNATURE_Y);
-    doc.text('for PALAK TRANSPORT CORP.', PAGE_WIDTH - MARGIN - 45, SIGNATURE_Y + 5);
-    
-    // 3.9 Footer Image 
-    //doc.addImage(footerImg, "JPEG", 0, 238.4, PAGE_WIDTH, 58.6); //fpr ptc2.jpg
-    doc.addImage(ptc5, "JPEG", 0, 297-33.12, PAGE_WIDTH, 33.12); // for ptc5.jpg
-    // --- 4. Final Output ---
-    const blob = doc.output("blob");
-    const url = URL.createObjectURL(blob);
-    
-    // Determine the filename based on invoice number
-    const invoiceNo = formData.invoiceNo || 'DRAFT';
-    const filename = `Invoice_${invoiceNo}.pdf`;
-    
-    // Update state with URL and filename
-    setPdfData({ url, filename });
-    
-    return () => URL.revokeObjectURL(url);
-  }, [formData, vehicles]);
-  
-  // New function to handle the download action
-  const handleDownload = () => {
-    if (pdfData.url && pdfData.filename) {
-      // Create a temporary link element
-      const link = document.createElement('a');
-      link.href = pdfData.url;
-      // Set the filename using the 'download' attribute
-      link.download = pdfData.filename; 
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  };
+            }
+        ]);
 
 
-  // The return block remains unchanged
-  return (
-    <div style={{ padding: '10px', backgroundColor: '#f3f4f6', borderRadius: '8px' }}>
-      <div style={{ marginBottom: '10px', textAlign: 'right' }}>
-        <button
-          onClick={handleDownload}
-          disabled={!pdfData.url}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#10b981',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: pdfData.url ? 'pointer' : 'not-allowed',
-            fontWeight: 'bold',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}
-        >
-          Download ({pdfData.filename || 'PDF'})
-        </button>
-      </div>
-      <div style={{ width: "100%", height: "600px", border: "1px solid #ccc", borderRadius: "8px", overflow: 'hidden' }}>
-        {pdfData.url ? (
-          <iframe 
-            src={pdfData.url} 
-            title="Invoice PDF" 
-            width="100%" 
-            height="100%" 
-            style={{ border: 'none' }} 
-          />
-        ) : (
-          <p style={{ padding: '20px', textAlign: 'center' }}>Loading PDF...</p>
-        )}
-      </div>
-    </div>
-  );
+        // --- SECTION 6: BANK DETAILS AND TERMS ---
+        // ALL_TABLE_BODY.push([
+        //     { content: 'BANK DETAILS & TERMS', colSpan: 6, styles: { ...SECTION_HEAD_STYLES, fontSize: 8.5, fillColor: COLOR_MEDIUM_GRAY } }
+        // ]);
+
+        const bankDetailsContent = 
+            `PAN NO.: AWWPP1314Q\n` +
+            `Bank Account Details:\n` +
+            `Name: PALAK TRANSPORT CORP\n` +
+            `Bank: HDFC BANK LTD.\n` +
+            `A/c No.: 50200044714511\n` +
+            `IFSC: HDFC0002822\n` +
+            `Branch: KALAMBOLI`;
+
+        const termsContent = 
+            `Note:\n\n` +
+            `1) 12% Interest will be charged if the payment of this bill is not made within 15 days from the date of bill.\n\n` +
+            `2) You are requested to make payment to this bill by cross or order cheque in favour of "PALAK TRANSPORT CORP"`;
+
+        ALL_TABLE_BODY.push([
+            { 
+                content: bankDetailsContent, 
+                colSpan: 2, 
+                styles: { fontStyle: 'normal', fontSize: 7.5, valign: 'top', cellPadding: 2, fillColor: COLOR_WHITE } 
+            },
+            { 
+                content: termsContent, 
+                colSpan: 4, 
+                styles: { fontStyle: 'normal', fontSize: 7.5, valign: 'top' ,halign:'left', cellPadding: 2, fillColor: COLOR_WHITE } 
+            }
+        ]);
+
+
+        // --- 4. Document Content Generation ---
+
+        // 4.1 Header Image
+        doc.addImage(ptc4, "JPEG", 0, 0, PAGE_WIDTH, 58.03); 
+        currentY = 62;
+
+        // 4.2 Invoice/Date Info 
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(255, 0, 0); 
+        doc.text(`BILL NO. ${formData.invoiceNo || '1'}`, MARGIN + 1, currentY);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`DATE: ${formData.billDate || ''}`, PAGE_WIDTH - 11 , currentY, { align: 'right' }); 
+        
+        currentY += 2;
+        
+        // 4.3 SINGLE LARGE TABLE
+        autoTable(doc, {
+            ...TABLE_BASE_STYLES,
+            startY: currentY,
+            head: [], 
+            body: ALL_TABLE_BODY,
+            theme: 'grid', 
+            
+            // Define 6 columns using the fixed widths
+            columnStyles: {
+                0: { cellWidth: COL_WIDTHS[0], halign: 'left' }, 
+                1: { cellWidth: COL_WIDTHS[1], halign: 'left' }, 
+                2: { cellWidth: COL_WIDTHS[2], halign: 'right' }, // Right align charge amounts
+                3: { cellWidth: COL_WIDTHS[3], halign: 'right' }, 
+                4: { cellWidth: COL_WIDTHS[4], halign: 'right' }, 
+                5: { cellWidth: COL_WIDTHS[5], halign: 'right' },
+            },
+        });
+        
+        currentY = doc.lastAutoTable.finalY + 3;
+
+        // --- 4.4 Signatures (OUT OF TABLE) ---
+        const SIGNATURE_Y_POS = currentY + 30; 
+        
+        const X_PREPARED = MARGIN + COL_WIDTHS[0] / 2; 
+        const X_CHECKED = MARGIN + COL_WIDTHS[0] + COL_WIDTHS[1] + COL_WIDTHS[2] / 2; 
+
+        // Draw Text Labels
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        // doc.text('Prepared By.', X_PREPARED, SIGNATURE_Y_POS, { align: 'center' });
+        // doc.text('Checked By.', X_CHECKED, SIGNATURE_Y_POS, { align: 'center' });
+
+        // Authorized Signatory (Right side)
+        const SIGNATURE_IMAGE_WIDTH = 30;
+        const SIGNATURE_IMAGE_HEIGHT = 20; 
+        const IMAGE_X_POS = PAGE_WIDTH - MARGIN - SIGNATURE_IMAGE_WIDTH - 5; 
+        
+        doc.addImage(
+            signImg, 
+            "PNG", 
+            IMAGE_X_POS, 
+            SIGNATURE_Y_POS - SIGNATURE_IMAGE_HEIGHT - 2, 
+            SIGNATURE_IMAGE_WIDTH, 
+            SIGNATURE_IMAGE_HEIGHT
+        );
+        
+        doc.setFont(undefined, 'bold');
+        doc.text('Authorised Signatory', PAGE_WIDTH - 16, SIGNATURE_Y_POS - 1, { align: 'right' });
+        doc.setFont(undefined, 'normal');
+        doc.text('for PALAK TRANSPORT CORP.', PAGE_WIDTH - MARGIN, SIGNATURE_Y_POS + 3, { align: 'right' });
+        
+        currentY = SIGNATURE_Y_POS + 5; 
+
+        // 4.5 Footer Image 
+        const FOOTER_HEIGHT = 33.12;
+        doc.addImage(ptc5, "JPEG", 0, 297 - FOOTER_HEIGHT, PAGE_WIDTH, FOOTER_HEIGHT);
+        
+        // --- 5. Final Output ---
+        const blob = doc.output("blob");
+        const url = URL.createObjectURL(blob);
+        
+        const invoiceNo = formData.invoiceNo || 'DRAFT';
+        const filename = `Invoice_${invoiceNo}.pdf`;
+        
+        setPdfData({ url, filename });
+        
+        return () => URL.revokeObjectURL(url);
+    }, [formData, vehicles]);
+    
+    // Download logic remains the same
+    const handleDownload = () => {
+        if (pdfData.url && pdfData.filename) {
+            const link = document.createElement('a');
+            link.href = pdfData.url;
+            link.download = pdfData.filename; 
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    };
+
+    return (
+        <div style={{ padding: '10px', backgroundColor: '#f3f4f6', borderRadius: '8px' }}>
+            <div style={{ marginBottom: '10px', textAlign: 'right' }}>
+                <button
+                    onClick={handleDownload}
+                    disabled={!pdfData.url}
+                    style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: pdfData.url ? 'pointer' : 'not-allowed',
+                        fontWeight: 'bold',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                >
+                    Download ({pdfData.filename || 'PDF'})
+                </button>
+            </div>
+            <div style={{ width: "100%", height: "600px", border: "1px solid #ccc", borderRadius: "8px", overflow: 'hidden' }}>
+                {pdfData.url ? (
+                    <iframe 
+                        src={pdfData.url} 
+                        title="Invoice PDF" 
+                        width="100%" 
+                        height="100%" 
+                        style={{ border: 'none' }} 
+                    />
+                ) : (
+                    <p style={{ padding: '20px', textAlign: 'center' }}>Loading PDF...</p>
+                )}
+            </div>
+        </div>
+    );
 }
